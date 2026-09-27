@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Referral = require("../models/Referral");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 // ==========================================
 // GENERATE JWT TOKEN
@@ -27,7 +28,6 @@ const registerUser = async (req, res) => {
             referralCode
         } = req.body;
 
-        // Validation
         if (!name || !email || !password) {
             return res.status(400).json({
                 message: "Name, email and password are required"
@@ -36,7 +36,6 @@ const registerUser = async (req, res) => {
 
         const cleanEmail = email.trim().toLowerCase();
 
-        // Check existing user
         const existingUser = await User.findOne({
             email: cleanEmail
         });
@@ -86,12 +85,20 @@ const registerUser = async (req, res) => {
         }
 
         // ==========================================
+        // HASH PASSWORD
+        // ==========================================
+        const hashedPassword = await bcrypt.hash(
+            password,
+            10
+        );
+
+        // ==========================================
         // CREATE USER
         // ==========================================
         const user = await User.create({
             name: name.trim(),
             email: cleanEmail,
-            password: password,
+            password: hashedPassword,
             referralCode: newReferralCode,
             referredBy: referrer
                 ? referrer._id
@@ -115,12 +122,8 @@ const registerUser = async (req, res) => {
             );
         }
 
-        // Generate token
         const token = generateToken(user._id);
 
-        // ==========================================
-        // RESPONSE
-        // ==========================================
         res.status(201).json({
             message: "User registered successfully",
 
@@ -171,9 +174,6 @@ const loginUser = async (req, res) => {
             password
         } = req.body;
 
-        // ==========================================
-        // VALIDATION
-        // ==========================================
         if (!email || !password) {
             return res.status(400).json({
                 message: "Email and password are required"
@@ -189,21 +189,14 @@ const loginUser = async (req, res) => {
             email: cleanEmail
         });
 
-        // ==========================================
-        // USER NOT FOUND
-        // ==========================================
         if (!user) {
-            console.log(
-                `Login failed: user not found - ${cleanEmail}`
-            );
-
             return res.status(401).json({
                 message: "Invalid email or password"
             });
         }
 
         // ==========================================
-        // CHECK ACTIVE USER
+        // CHECK ACTIVE STATUS
         // ==========================================
         if (!user.isActive) {
             return res.status(403).json({
@@ -212,13 +205,14 @@ const loginUser = async (req, res) => {
         }
 
         // ==========================================
-        // CHECK PASSWORD
+        // BCRYPT PASSWORD CHECK
         // ==========================================
-        if (user.password !== password) {
-            console.log(
-                `Login failed: incorrect password - ${cleanEmail}`
-            );
+        const passwordMatch = await bcrypt.compare(
+            password,
+            user.password
+        );
 
+        if (!passwordMatch) {
             return res.status(401).json({
                 message: "Invalid email or password"
             });
@@ -233,9 +227,6 @@ const loginUser = async (req, res) => {
             `Login successful: ${user.email}`
         );
 
-        // ==========================================
-        // LOGIN RESPONSE
-        // ==========================================
         res.status(200).json({
             message: "Login successful",
 
