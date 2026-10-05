@@ -79,17 +79,20 @@ const createProduct = async (req, res) => {
 // ===============================
 // UPDATE PRODUCT
 // ===============================
+
 const updateProduct = async (req, res) => {
     try {
-        const product =
-            await Product.findByIdAndUpdate(
-                req.params.id,
-                req.body,
-                {
-                    new: true,
-                    runValidators: true
-                }
-            );
+        const {
+            name,
+            description,
+            price,
+            category,
+            brand,
+            skinType,
+            stockQuantity
+        } = req.body;
+
+        const product = await Product.findById(req.params.id);
 
         if (!product) {
             return res.status(404).json({
@@ -97,13 +100,57 @@ const updateProduct = async (req, res) => {
             });
         }
 
+        // Update fields
+        if (name !== undefined) {
+            product.name = name;
+        }
+
+        if (description !== undefined) {
+            product.description = description;
+        }
+
+        if (price !== undefined) {
+            product.price = Number(price);
+        }
+
+        if (category !== undefined) {
+            product.category = category;
+        }
+
+        if (brand !== undefined) {
+            product.brand = brand;
+        }
+
+        if (skinType !== undefined) {
+            product.skinType = Array.isArray(skinType)
+                ? skinType
+                : skinType
+                    ? skinType.split(",").map(item => item.trim())
+                    : [];
+        }
+
+        // IMPORTANT: Stock update
+        if (stockQuantity !== undefined) {
+            const newStock = Number(stockQuantity);
+
+            if (Number.isNaN(newStock) || newStock < 0) {
+                return res.status(400).json({
+                    message: "Stock quantity must be a valid number greater than or equal to 0"
+                });
+            }
+
+            product.stockQuantity = newStock;
+        }
+
+        await product.save();
+
         res.status(200).json({
             message: "Product updated successfully",
             product
         });
 
     } catch (error) {
-        console.error(error);
+        console.error("Update product error:", error);
 
         res.status(400).json({
             message: "Failed to update product",
